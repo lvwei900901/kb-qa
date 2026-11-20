@@ -1,3 +1,8 @@
+---
+version: 15
+topic: streaming
+---
+
 # 流式渲染与 Suspense
 
 ## loading.tsx

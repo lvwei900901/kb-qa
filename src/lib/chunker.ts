@@ -1,4 +1,4 @@
-import type { Chunk } from "./types";
+import type { Chunk, DocVersion } from "./types";
 
 interface Section {
   headingPath: string[];
@@ -8,6 +8,33 @@ interface Section {
 export interface ChunkOptions {
   maxChars?: number;
   overlapChars?: number;
+  version?: DocVersion;
+  topic?: string;
+}
+
+export interface Frontmatter {
+  version: DocVersion;
+  topic: string;
+  body: string;
+}
+
+export function parseFrontmatter(markdown: string): Frontmatter {
+  const match = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/.exec(markdown);
+  if (!match) {
+    return { version: "15", topic: "general", body: markdown };
+  }
+  const meta: Record<string, string> = {};
+  for (const line of match[1].split(/\r?\n/)) {
+    const colon = line.indexOf(":");
+    if (colon > 0) {
+      meta[line.slice(0, colon).trim()] = line.slice(colon + 1).trim();
+    }
+  }
+  return {
+    version: meta.version === "16" ? "16" : "15",
+    topic: meta.topic || "general",
+    body: markdown.slice(match[0].length),
+  };
 }
 
 function splitLongText(text: string, maxChars: number, overlapChars: number): string[] {
@@ -51,6 +78,8 @@ export function chunkMarkdown(
 ): Chunk[] {
   const maxChars = options.maxChars ?? 800;
   const overlapChars = options.overlapChars ?? 120;
+  const version = options.version ?? "15";
+  const topic = options.topic ?? "general";
   const sections: Section[] = [];
   let headingPath: string[] = [];
   let current: Section | null = null;
@@ -82,6 +111,8 @@ export function chunkMarkdown(
         content: piece,
         source,
         headingPath: section.headingPath,
+        version,
+        topic,
       });
     }
   }

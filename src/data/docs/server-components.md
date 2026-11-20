@@ -1,3 +1,8 @@
+---
+version: 15
+topic: server-components
+---
+
 # Server Components 与 Client Components
 
 App Router 默认所有组件都是 React Server Component（RSC）。RSC 在服务端渲染，代码不会打包到客户端，可以直接访问数据库和后端资源。

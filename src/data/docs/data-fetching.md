@@ -1,3 +1,8 @@
+---
+version: 15
+topic: data-fetching
+---
+
 # 数据获取与缓存
 
 ## fetch 与缓存

@@ -1,4 +1,4 @@
-import type { SearchResult } from "./types";
+import type { SearchResult, VersionDiff } from "./types";
 
 export interface LLMConfig {
   apiKey: string;
@@ -44,13 +44,32 @@ function scoreTokens(text: string): string[] {
 
 function buildContext(results: SearchResult[]): string {
   return results
-    .map((result, index) => `[${index + 1}] 来源：${result.chunk.title}\n${result.chunk.content}`)
+    .map(
+      (result, index) =>
+        `[${index + 1}] [Next.js ${result.chunk.version}] 来源：${result.chunk.title}\n${result.chunk.content}`,
+    )
     .join("\n\n");
+}
+
+function buildDiffContext(diffs: VersionDiff[]): string {
+  if (diffs.length === 0) return "";
+  const blocks = diffs.map((diff) => {
+    return [
+      `主题：${diff.title}`,
+      `Next.js 15（旧）：${diff.oldSummary}（出处：${diff.oldSource}）`,
+      `Next.js 16（新）：${diff.newSummary}（出处：${diff.newSource}）`,
+      diff.note ? `差异要点：${diff.note}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n");
+  });
+  return `\n\n新旧版本差异对照：\n${blocks.join("\n\n")}`;
 }
 
 async function* demoAnswer(
   question: string,
   results: SearchResult[],
+  diffs: VersionDiff[],
 ): AsyncGenerator<string> {
   const queryTokens = new Set(scoreTokens(question));
   const candidates: { text: string; score: number; index: number }[] = [];
@@ -72,10 +91,21 @@ async function* demoAnswer(
   candidates.sort((a, b) => b.score - a.score);
   const picked = candidates.slice(0, 5);
 
-  yield `根据知识库中的 ${results.length} 个相关片段，我找到了以下内容：`;
+  if (diffs.length > 0) {
+    yield `这个问题涉及版本差异。以下是 Next.js 15 与 16 的对照（以 16 为准）：`;
+    for (const diff of diffs) {
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      yield `\n\n【${diff.title}】\n旧版（v15）：${diff.oldSummary}\n新版（v16）：${diff.newSummary}`;
+      if (diff.note) yield `\n差异要点：${diff.note}`;
+    }
+    yield "\n\n下面补充检索到的原文片段：";
+  } else {
+    yield `根据知识库中的 ${results.length} 个相关片段，我找到了以下内容：`;
+  }
   for (const item of picked) {
     await new Promise((resolve) => setTimeout(resolve, 30));
-    yield `\n\n${item.text} [${item.index + 1}]`;
+    const version = results[item.index]?.chunk.version ?? "15";
+    yield `\n\n${item.text} [Next.js ${version}] [${item.index + 1}]`;
   }
   yield "\n\n配置 LLM_API_KEY 后可切换到大模型生成模式，答案会更完整连贯。";
 }
@@ -84,19 +114,20 @@ export async function* streamAnswer(
   question: string,
   results: SearchResult[],
   config: LLMConfig | null,
+  diffs: VersionDiff[] = [],
 ): AsyncGenerator<string> {
   if (results.length === 0) {
     yield "知识库中暂时没有与这个问题相关的内容。可以换个问法试试，或确认已运行 `npm run ingest` 完成入库。";
     return;
   }
   if (!config) {
-    yield* demoAnswer(question, results);
+    yield* demoAnswer(question, results, diffs);
     return;
   }
 
   const system =
-    "你是一个技术文档问答助手。只根据提供的参考资料回答，不要编造资料中没有的信息。如果资料不足以回答，请明确说明。回答用中文，简洁清晰，并在关键结论后标注引用编号如 [1]。";
-  const user = `参考资料：\n${buildContext(results)}\n\n用户问题：${question}`;
+    "你是一个技术文档问答助手，同时掌握 Next.js 15 和 16 两套文档。只根据提供的参考资料回答，不要编造资料中没有的信息。当参考资料同时包含 v15 和 v16 时，以 v16 为最新结论作答，并明确说明新旧版本的区别。回答用中文，简洁清晰，并在关键结论后标注引用编号如 [1]。";
+  const user = `参考资料：\n${buildContext(results)}${buildDiffContext(diffs)}\n\n用户问题：${question}`;
 
   const response = await fetch(config.baseUrl, {
     method: "POST",

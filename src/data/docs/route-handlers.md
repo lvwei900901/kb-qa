@@ -1,3 +1,8 @@
+---
+version: 15
+topic: route-handlers
+---
+
 # Route Handler API
 
 app/api/xxx/route.ts 定义 API 端点，导出同名 HTTP 方法函数：GET、POST、PUT、PATCH、DELETE、HEAD、OPTIONS。

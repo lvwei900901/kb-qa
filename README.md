@@ -1,6 +1,26 @@
-# 知识库问答（Next.js 技术文档）
+# 知识库问答（Next.js 15 / 16 双版本对比）
 
-一个可直接运行的人工智能知识库问答个人项目：语义检索 + 流式回答 + 引用溯源。内置 Next.js App Router 官方技术文档语料，开箱即用。
+一个可直接运行的人工智能知识库问答个人项目：语义检索 + 流式回答 + 引用溯源 + **新旧版本差异对比**。内置 Next.js 15 中文文档与 Next.js 16 英文文档（共 13 份、58 个知识块），提问时自动识别版本相关问题，配对新旧内容并以 v16 为准给出差异提示，开箱即用。
+
+## 版本对比能力
+
+内置两套语料：
+
+- `src/data/docs/*.md`：Next.js 15 中文文档（6 份，frontmatter 标注 `version: 15`）
+- `src/data/docs/v16/*.md`：Next.js 16 英文文档（7 份，含官方升级指南，标注 `version: 16`）
+
+每份文档通过 frontmatter 的 `topic` 字段配对（如 `routing`、`data-fetching`）。当问题涉及版本差异（如「params 有什么区别」「middleware 为什么改名」），系统会：
+
+1. 按主题同时召回 v15 与 v16 的片段，新版优先展示
+2. 发出 `version_diff` 事件，前端以蓝色对照卡片展示「v15 旧做法 / v16 新做法 + 差异要点」
+3. 回答正文明确以 v16 为最新结论
+
+试试这些问题：
+
+- 「Next.js 15 和 16 的 params 有什么区别？」
+- 「middleware 为什么改成了 proxy？」
+- 「revalidateTag 在 16 里怎么用？」
+- 「15 升级到 16 有哪些破坏性变更？」
 
 ## 快速开始
 
@@ -45,7 +65,7 @@ npm run dev
 
 ## 效果评测
 
-内置 28 条评测集（含同义改写问法与 1 条无关问题），运行：
+内置 35 条评测集（含同义改写、7 条版本对比问题与 1 条无关问题），运行：
 
 ```bash
 npm run evaluate
@@ -55,9 +75,11 @@ npm run evaluate
 
 | 指标 | 结果 |
 |---|---|
-| Recall@5 | 100%（27/27） |
-| MRR | 0.944 |
+| Recall@5 | 100%（34/34） |
+| MRR | 0.941 |
 | 无关问题正确拒答 | 通过（最高分 0.208 < 阈值 0.25） |
+
+评测按 `topic` 匹配（新旧版本同主题视为命中），适配双版本语料。
 
 评测集在 `scripts/eval-set.json`，可自行增补问题与标注。
 
@@ -73,24 +95,35 @@ src/
 ├── components/
 │   ├── chat-panel.tsx      # 问答界面（客户端）
 │   └── ui/                 # Button / Input 基础组件
-├── data/docs/              # 语料目录：放入自己的 .md 文件
+├── data/docs/              # 语料目录：v15 根级 .md + v16/ 子目录
 └── lib/
-    ├── chunker.ts          # 按标题层级切块 + overlap
+    ├── chunker.ts          # frontmatter 解析 + 按标题层级切块 + overlap
     ├── embeddings.ts       # 真实 API / 本地降级双重实现
     ├── vector-store.ts     # JSON 向量库 + 余弦相似度
-    ├── llm.ts              # 真实 LLM 流式 / 演示抽取式
-    └── rag.ts              # 检索编排 + rerank + 引用
+    ├── version-diff.ts     # 版本识别 + 新旧主题配对 + 差异生成
+    ├── llm.ts              # 真实 LLM 流式 / 演示抽取式（含版本差异）
+    └── rag.ts              # 检索编排 + 版本平衡 + rerank + 引用
 scripts/ingest.ts           # 离线入库脚本
 data/index.json             # 生成的索引（无需提交）
 ```
 
 ## 换成你自己的文档
 
-1. 把 Markdown 文件放进 `src/data/docs/`
+1. 把 Markdown 文件放进 `src/data/docs/`，可选在文件开头加 frontmatter：
+
+```markdown
+---
+version: 16        # 15 或 16，缺省为 15
+topic: routing     # 主题名，相同 topic 的新旧文档会被配对对比
+---
+
+# 文档标题
+```
+
 2. 运行 `npm run ingest` 重建索引
 3. 刷新页面即可提问
 
-切块策略在 `src/lib/chunker.ts`：默认每块 800 字符、重叠 120 字符，按标题层级保留标题路径作为引用来源。
+切块策略在 `src/lib/chunker.ts`：默认每块 800 字符、重叠 120 字符，按标题层级保留标题路径作为引用来源。版本差异的关键词与提示语在 `src/lib/version-diff.ts` 的 `TOPIC_HINTS` 中维护。
 
 ## 本地启动命令
 

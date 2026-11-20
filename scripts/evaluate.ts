@@ -78,6 +78,7 @@ async function main() {
     const evalCase = cases[i];
     const hits = search(index, vectors[i], TOP_K);
     const retrieved = hits.map((hit) => hit.chunk.docId);
+    const retrievedTopics = hits.map((hit) => hit.chunk.topic);
     const score = hits[0]?.score ?? 0;
     const isNegative = evalCase.relevantDocs.length === 0;
 
@@ -86,8 +87,14 @@ async function main() {
       question: evalCase.question,
       expected: evalCase.relevantDocs.join("|") || "(应拒答)",
       retrieved,
-      hit: isNegative ? score < 0.25 : recallAtK(retrieved, evalCase.relevantDocs, TOP_K) === 1,
-      rank: reciprocalRank(retrieved, evalCase.relevantDocs),
+      hit: isNegative
+        ? score < 0.25
+        : recallAtK(retrieved, evalCase.relevantDocs, TOP_K) === 1 ||
+          recallAtK(retrievedTopics, evalCase.relevantDocs, TOP_K) === 1,
+      rank: Math.max(
+        reciprocalRank(retrieved, evalCase.relevantDocs),
+        reciprocalRank(retrievedTopics, evalCase.relevantDocs),
+      ),
       score,
     });
   }

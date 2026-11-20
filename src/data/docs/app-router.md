@@ -1,3 +1,8 @@
+---
+version: 15
+topic: routing
+---
+
 # App Router 基础
 
 App Router 是 Next.js 13 引入的路由架构，基于 React Server Components，使用 app/ 目录组织页面。它与旧的 pages/ 目录可以共存，但新项目建议统一使用 App Router。

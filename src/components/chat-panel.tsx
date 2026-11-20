@@ -7,6 +7,7 @@ import {
   BookOpen,
   ChevronDown,
   FileText,
+  GitCompareArrows,
   Moon,
   RotateCcw,
   Sparkles,
@@ -15,17 +16,76 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import type { ChatEvent, ChatMessage, Source } from "@/lib/types";
+import type { ChatEvent, ChatMessage, Source, VersionDiff } from "@/lib/types";
 
 const SUGGESTIONS = [
-  "App Router 和 pages 目录有什么区别？",
+  "Next.js 15 和 16 的 params 有什么区别？",
+  "middleware 为什么改成了 proxy？",
+  "revalidateTag 在 16 里怎么用？",
   "什么时候该用 use client？",
-  "Route Handler 怎么做流式输出？",
-  "Next.js 15 的 params 怎么用？",
+  "Turbopack 在 16 里还需要手动开启吗？",
+  "15 升级到 16 有哪些破坏性变更？",
 ];
 
 function createId() {
   return Math.random().toString(36).slice(2, 10);
+}
+
+function VersionBadge({ version }: { version: "15" | "16" }) {
+  return (
+    <span
+      className={cn(
+        "shrink-0 rounded px-1.5 py-0.5 font-mono text-[10px] font-medium",
+        version === "16"
+          ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300"
+          : "bg-muted text-muted-foreground",
+      )}
+    >
+      v{version}
+    </span>
+  );
+}
+
+function VersionDiffList({ diffs }: { diffs: VersionDiff[] }) {
+  const [open, setOpen] = useState(true);
+  if (diffs.length === 0) return null;
+
+  return (
+    <div className="mt-4 overflow-hidden rounded-lg border border-blue-200 dark:border-blue-900/50">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+        className="flex w-full items-center gap-2 bg-blue-50 px-3 py-2 text-left text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:bg-blue-950/60"
+      >
+        <GitCompareArrows className="size-3.5" aria-hidden />
+        <span className="flex-1">发现 {diffs.length} 处新旧版本差异（以 v16 为准）</span>
+        <ChevronDown className={cn("size-3.5 transition-transform", open && "rotate-180")} aria-hidden />
+      </button>
+      {open && (
+        <div className="divide-y divide-blue-100 dark:divide-blue-900/40">
+          {diffs.map((diff, index) => (
+            <div key={`${diff.topic}-${index}`} className="px-3 py-2.5 text-xs">
+              <p className="mb-1.5 font-medium text-foreground">{diff.title}</p>
+              <p className="leading-relaxed text-muted-foreground">
+                <span className="font-medium text-foreground/70">v15：</span>
+                {diff.oldSummary}
+              </p>
+              <p className="mt-1 leading-relaxed text-blue-700 dark:text-blue-300">
+                <span className="font-medium">v16：</span>
+                {diff.newSummary}
+              </p>
+              {diff.note && (
+                <p className="mt-1.5 rounded bg-blue-50/80 px-2 py-1 leading-relaxed text-blue-700 dark:bg-blue-950/30 dark:text-blue-300">
+                  {diff.note}
+                </p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function SourceList({ sources }: { sources: Source[] }) {
@@ -55,8 +115,11 @@ function SourceList({ sources }: { sources: Source[] }) {
               className="rounded-md bg-muted/60 px-2.5 py-2 text-xs text-muted-foreground"
             >
               <div className="flex items-center justify-between gap-2">
-                <span className="truncate font-medium text-foreground/80">
-                  [{index + 1}] {source.title}
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <span className="truncate font-medium text-foreground/80">
+                    [{index + 1}] {source.title}
+                  </span>
+                  <VersionBadge version={source.version} />
                 </span>
                 <span className="shrink-0 font-mono tabular-nums">{source.score.toFixed(3)}</span>
               </div>
@@ -91,6 +154,7 @@ function AssistantBubble({ message }: { message: ChatMessage }) {
                 <span className="ml-0.5 inline-block h-4 w-0.5 animate-pulse bg-foreground align-middle" />
               )}
             </p>
+            <VersionDiffList diffs={message.versionDiffs ?? []} />
             <SourceList sources={message.sources ?? []} />
           </>
         )}
@@ -139,6 +203,9 @@ export function ChatPanel({ mode, chunks }: { mode: "demo" | "live"; chunks: num
         break;
       case "sources":
         updateAssistant(id, (message) => ({ ...message, sources: event.sources }));
+        break;
+      case "version_diff":
+        updateAssistant(id, (message) => ({ ...message, versionDiffs: event.diffs }));
         break;
       case "delta":
         updateAssistant(id, (message) => ({ ...message, content: message.content + event.text }));
@@ -222,7 +289,7 @@ export function ChatPanel({ mode, chunks }: { mode: "demo" | "live"; chunks: num
           </div>
           <div className="min-w-0 flex-1">
             <h1 className="truncate text-sm font-medium text-foreground">知识库问答</h1>
-            <p className="truncate text-[11px] text-muted-foreground">Next.js 技术文档 · 语义检索</p>
+            <p className="truncate text-[11px] text-muted-foreground">Next.js 15 / 16 双版本 · 语义检索与差异对比</p>
           </div>
           <span
             className={cn(
@@ -262,7 +329,7 @@ export function ChatPanel({ mode, chunks }: { mode: "demo" | "live"; chunks: num
                 你想了解什么？
               </h2>
               <p className="mt-2 max-w-md text-sm leading-relaxed text-muted-foreground">
-                基于 {chunks} 个知识片段的 Next.js 技术文档问答。
+                基于 {chunks} 个知识片段的 Next.js 15 / 16 双版本问答，自动对比新旧差异。
                 {mode === "demo" && " 当前为演示模式，配置 API Key 后可启用真实语义检索。"}
               </p>
               <div className="mt-8 grid w-full max-w-2xl gap-2.5 sm:grid-cols-2">
