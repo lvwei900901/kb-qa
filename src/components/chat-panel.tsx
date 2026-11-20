@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import {
   AlertCircle,
   ArrowUp,
@@ -291,6 +292,13 @@ export function ChatPanel({ mode, chunks }: { mode: "demo" | "live"; chunks: num
             <h1 className="truncate text-sm font-medium text-foreground">知识库问答</h1>
             <p className="truncate text-[11px] text-muted-foreground">Next.js 15 / 16 双版本 · 语义检索与差异对比</p>
           </div>
+          <Link
+            href="/story"
+            className="hidden items-center gap-1.5 rounded-full border border-border px-3 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground sm:inline-flex"
+          >
+            <Sparkles className="size-3.5" aria-hidden />
+            故事 Agent
+          </Link>
           <span
             className={cn(
               "hidden rounded-full px-2.5 py-1 text-[11px] font-medium sm:inline-block",
