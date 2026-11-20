@@ -1,6 +1,11 @@
-# 知识库问答（Next.js 15 / 16 双版本对比）
+# 知识库问答 + 故事 Agent
 
-一个可直接运行的人工智能知识库问答个人项目：语义检索 + 流式回答 + 引用溯源 + **新旧版本差异对比**。内置 Next.js 15 中文文档与 Next.js 16 英文文档（共 13 份、58 个知识块），提问时自动识别版本相关问题，配对新旧内容并以 v16 为准给出差异提示，开箱即用。
+一个可直接运行的 AI 全栈个人项目，包含两个模块：
+
+1. **知识库问答**：语义检索 + 流式回答 + 引用溯源 + **Next.js 15/16 新旧版本差异对比**。内置 13 份官方文档（58 个知识块），开箱即用。
+2. **故事 Agent**（`/story`）：**Function Calling + 多轮工具调用 + 流式成文 + 语音朗读**。大模型自主决定调用工具规划角色与情节，逐字写出故事，最后请求朗读精彩片段。
+
+两个模块共享同一个智谱 Key，均支持 SSE 流式输出。
 
 ## 版本对比能力
 
@@ -63,6 +68,21 @@ npm run dev
 
 > `.env.local` 已被 `.gitignore` 忽略，你的 Key 不会被提交。
 
+## 故事 Agent（Function Calling）
+
+访问 `/story`，输入主题即可体验完整的 Agent 闭环：
+
+1. **模型规划**：GLM-4-Flash 读取主题，自主决定调用哪些工具
+2. **工具调用**：`plan_characters`（规划角色）、`design_twist`（设计转折）——服务端执行后把结果回灌给模型，属于真正的 Function Calling 多轮对话
+3. **流式成文**：模型综合工具结果写出完整故事，通过 SSE 逐字显示
+4. **语音工具**：`speak` 由模型决定朗读哪一段、用什么音色；后端发出 `speak` 事件，**前端用浏览器 Web Speech API 实际朗读**
+
+工具定义与执行解耦是这里的核心设计：模型负责"决策"（调哪个工具、传什么参数），执行端可以在服务端（角色/转折）或客户端（语音）。这样语音无需额外 TTS Key，零成本且国内可用。若模型忽略最后的朗读指令，后端有保底逻辑自动抽取片段补发，保证演示稳定。
+
+**Key 说明**：故事 Agent 优先读 `LLM_API_KEY`（支持 DeepSeek / 通义千问等）；未配置时自动复用 `EMBEDDING_API_KEY` 走免费的 GLM-4-Flash。实测两个 Key 都是同一个智谱账号即可，无需额外申请。若要用 GLM-TTS 服务端合成语音，需单独开通其资源包（当前 Key 未开通）。
+
+SSE 事件类型：`status` / `tool_call` / `tool_result` / `delta` / `speak` / `done` / `error`，前端据此把 Agent 的决策过程可视化成时间线。
+
 ## 效果评测
 
 内置 35 条评测集（含同义改写、7 条版本对比问题与 1 条无关问题），运行：
@@ -89,12 +109,15 @@ npm run evaluate
 src/
 ├── app/
 │   ├── api/chat/route.ts   # 问答 API，SSE 流式返回
+│   ├── api/story/route.ts  # 故事 Agent API，SSE 返回工具事件+正文
+│   ├── story/page.tsx      # 故事 Agent 页面
 │   ├── page.tsx            # 首页（服务端读取索引状态）
 │   ├── layout.tsx          # 根布局 + 主题预加载脚本
 │   └── globals.css         # Tailwind v4 + 明暗主题变量
 ├── components/
-│   ├── chat-panel.tsx      # 问答界面（客户端）
-│   └── ui/                 # Button / Input 基础组件
+│   ├── chat-panel.tsx          # 问答界面（客户端）
+│   ├── story-agent-panel.tsx   # 故事 Agent 界面（工具时间线+朗读）
+│   └── ui/                     # Button / Input 基础组件
 ├── data/docs/              # 语料目录：v15 根级 .md + v16/ 子目录
 └── lib/
     ├── chunker.ts          # frontmatter 解析 + 按标题层级切块 + overlap
@@ -102,7 +125,9 @@ src/
     ├── vector-store.ts     # JSON 向量库 + 余弦相似度
     ├── version-diff.ts     # 版本识别 + 新旧主题配对 + 差异生成
     ├── llm.ts              # 真实 LLM 流式 / 演示抽取式（含版本差异）
-    └── rag.ts              # 检索编排 + 版本平衡 + rerank + 引用
+    ├── rag.ts              # 检索编排 + 版本平衡 + rerank + 引用
+    ├── story-agent.ts      # 故事 Agent：多轮 Function Calling 编排
+    └── story-tools.ts      # 工具定义 schema + 服务端执行逻辑
 scripts/ingest.ts           # 离线入库脚本
 data/index.json             # 向量索引（需提交：Vercel 运行时依赖它）
 ```
