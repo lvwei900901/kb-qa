@@ -104,7 +104,7 @@ src/
     ├── llm.ts              # 真实 LLM 流式 / 演示抽取式（含版本差异）
     └── rag.ts              # 检索编排 + 版本平衡 + rerank + 引用
 scripts/ingest.ts           # 离线入库脚本
-data/index.json             # 生成的索引（无需提交）
+data/index.json             # 向量索引（需提交：Vercel 运行时依赖它）
 ```
 
 ## 换成你自己的文档
@@ -133,10 +133,40 @@ unset NODE_OPTIONS   # WorkBuddy 环境需要：避免沙箱 shim 拦截 Next.js
 cd kb-qa && npm run dev
 ```
 
-`next.config.ts` 中设置了 `distDir: ".next-build"`，用于规避沙箱环境对默认 `.next` 目录的删除限制。在普通开发机上可删掉这一行改回默认目录。
+`next.config.ts` 中仅在非 Vercel 环境设置 `distDir: ".next-build"`（规避沙箱对默认 `.next` 目录的删除限制）；部署到 Vercel 时自动使用默认 `.next`。
+
+## 部署到 Vercel
+
+本项目是 Next.js 全栈应用（API Route + 本地向量索引），可完整部署到 Vercel，免费 Hobby 计划足够。
+
+### 步骤
+
+1. 确认 `data/index.json` 已在仓库中（已提交）。若更新了文档，先本地 `npm run ingest` 并**一并提交索引文件**。
+2. 打开 [vercel.com/new](https://vercel.com/new) → Import 你的 GitHub 仓库 `lvwei900901/kb-qa`。
+3. Framework 自动识别为 Next.js，Build Command 保持默认 `npm run build`，无需改动。
+4. 展开 **Environment Variables**，按 `.env.local.example` 填写（线上要与生成索引时用同一套 embedding 配置，否则维度不匹配）：
+
+| 变量 | 值 | 说明 |
+|---|---|---|
+| `EMBEDDING_PROVIDER` | `zhipu` | 与本地一致 |
+| `EMBEDDING_API_KEY` | 你的智谱 Key | `EMBEDDING_*` 四个变量决定线上检索 |
+| `EMBEDDING_MODEL` | `embedding-3` | 必须与索引模型一致 |
+| `EMBEDDING_BASE_URL` | `https://open.bigmodel.cn/api/paas/v4/embeddings` | |
+| `LLM_API_KEY` | 可选 | 不填则回答为抽取式，填了是大模型生成 |
+
+5. 点 Deploy。首次约 1-2 分钟，完成后得到形如 `https://kb-qa-xxx.vercel.app` 的永久链接。
+6. 验证：打开链接提问「middleware 为什么改成了 proxy？」，应看到版本差异对照卡片。
+
+### 已内置的部署适配
+
+- `next.config.ts` 用 `outputFileTracingIncludes` 把 `data/index.json` 打进函数包——否则运行时 `fs.readFile` 读不到，问答会返回空结果。
+- Vercel 构建环境（`VERCEL=1`）自动使用默认 `.next`，本地沙箱仍用 `.next-build`。
+- 入库脚本只在本地跑，**不要**放进构建流程：批量 embedding 会超时且浪费额度。
+
+> 环境变量中的 Key 只在 Vercel 后台保存，不会进入代码仓库。若之前在对话中泄露过 Key，部署前建议先去智谱后台重置。
 
 ## 后续升级路径
 
 - 语料量上千块后，把 `vector-store.ts` 的 JSON 存储换成 Supabase pgvector 或 Qdrant，检索接口不变
 - 召回要求更高时，在 `rag.ts` 里接入 bge-reranker 替换当前轻量 rerank
-- 部署到 Vercel 时注意：入库脚本在本地跑，不要把批量 embedding 放进 API Route（会超时）
+- 需要自定义域名时，在 Vercel 项目 Settings → Domains 绑定

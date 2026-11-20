@@ -18,8 +18,8 @@
 /.next-build/
 /out/
 
-# generated vector index (rebuild with npm run ingest)
-/data/index.json
+# 向量索引需提交到 git：Vercel 从仓库构建，运行时依赖 data/index.json。
+# 更新文档后执行 npm run ingest 并一并提交即可。
 
 # production
 /build
